@@ -29,6 +29,7 @@ func render(result) -> void:
 
 	# Recreate visualization meshes (removes stale children first).
 	_update_terrace_mesh(result)
+	_update_mountain_mesh(result)
 	_update_cliff_mesh(result)
 	_update_water_plane(result)
 
@@ -40,6 +41,7 @@ func clear() -> void:
 	if terrain:
 		terrain.data.clear()
 	_remove_child_by_name("TerraceMesh")
+	_remove_child_by_name("MountainMesh")
 	_remove_child_by_name("CliffMesh")
 	_remove_child_by_name("WaterPlane")
 
@@ -116,6 +118,9 @@ func _update_terrace_mesh(result) -> void:
 	for y in range(h):
 		for x in range(w):
 			var idx: int = y * w + x
+			var t: int = tier_indices[idx] if idx < tier_indices.size() else 0
+			if t >= 5:
+				continue  # Purple tiers rendered as smooth triangles in MountainMesh
 			var height_y: float = heightmap[idx] * height_scale
 			var color: Color = _color_for_index(idx, tier_indices, tier_colors)
 
@@ -169,6 +174,112 @@ func _color_for_index(idx: int, tier_indices: PackedInt32Array, tier_colors: Arr
 	return tier_colors[t]
 
 
+# ── Mountain mesh (smooth purple tiers via shared-corner triangles) ───────────
+
+func _update_mountain_mesh(result) -> void:
+	_remove_child_by_name("MountainMesh")
+
+	var w: int = result.width
+	var h: int = result.height_val
+	var heightmap: PackedFloat32Array = result.heightmap
+
+	var tier_indices_raw = result.get("tier_indices")
+	if tier_indices_raw == null or not tier_indices_raw is PackedInt32Array:
+		return
+	var tier_indices: PackedInt32Array = tier_indices_raw
+
+	var tier_colors_raw = result.get("height_tier_colors")
+	var tier_colors: Array = []
+	if tier_colors_raw != null:
+		tier_colors = tier_colors_raw
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var half_w: float = float(w) / 2.0
+	var half_h: float = float(h) / 2.0
+
+	var any_mountain := false
+
+	for y in range(h):
+		for x in range(w):
+			var idx: int = y * w + x
+			if idx >= tier_indices.size():
+				continue
+			if tier_indices[idx] < 5:
+				continue
+
+			any_mountain = true
+			var color: Color = _color_for_index(idx, tier_indices, tier_colors)
+			var x0: float = -half_w + float(x)
+			var x1: float = -half_w + float(x + 1)
+			var z0: float = -half_h + float(y)
+			var z1: float = -half_h + float(y + 1)
+
+			if x < w - 1 and y < h - 1:
+				# Interior cell: two triangles sharing the four corners.
+				# Adjacent mountain cells naturally share vertices → smooth surface.
+				var idx_tr: int = y * w + x + 1
+				var idx_bl: int = (y + 1) * w + x
+				var idx_br: int = (y + 1) * w + x + 1
+
+				var h_tl: float = heightmap[idx] * height_scale
+				var h_tr: float = heightmap[idx_tr] * height_scale
+				var h_bl: float = heightmap[idx_bl] * height_scale
+				var h_br: float = heightmap[idx_br] * height_scale
+
+				# ▲ TL → TR → BL
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, h_tl, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, h_tr, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, h_bl, z1))
+
+				# ▲ TR → BR → BL
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, h_tr, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, h_br, z1))
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, h_bl, z1))
+			else:
+				# Boundary cell (rightmost / bottom row): flat quad at cell height.
+				var height_y: float = heightmap[idx] * height_scale
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, height_y, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, height_y, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, height_y, z1))
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, height_y, z0))
+				st.set_color(color)
+				st.add_vertex(Vector3(x1, height_y, z1))
+				st.set_color(color)
+				st.add_vertex(Vector3(x0, height_y, z1))
+
+	if not any_mountain:
+		return
+
+	st.generate_normals()
+	var mountain_mesh: ArrayMesh = st.commit()
+	if mountain_mesh == null or mountain_mesh.get_surface_count() == 0:
+		return
+
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = "MountainMesh"
+	mesh_instance.mesh = mountain_mesh
+	add_child(mesh_instance, true)
+	if get_tree():
+		mesh_instance.owner = get_tree().get_current_scene()
+
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.roughness = 0.95
+	mesh_instance.material_override = material
+
+
 # ── Water plane (translucent blue, at result.water_level) ────────────────────
 
 func _update_water_plane(result) -> void:
@@ -212,6 +323,12 @@ func _update_cliff_mesh(result) -> void:
 	var h: int = result.height_val
 	var heightmap: PackedFloat32Array = result.heightmap
 
+	var cliff_color: Color = result.get("cliff_color") if result.get("cliff_color") != null else Color(0.78, 0.73, 0.52, 1.0)
+	var tier_colors_raw = result.get("height_tier_colors")
+	var tier_colors: Array = []
+	if tier_colors_raw != null:
+		tier_colors = tier_colors_raw
+
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
@@ -232,6 +349,8 @@ func _update_cliff_mesh(result) -> void:
 				var wz_top: float = -half_h + float(y)
 				var wz_bot: float = -half_h + float(y + 1)
 
+				var wall_color: Color = _cliff_wall_color(tier_indices, tier_colors, idx, idx_right, cliff_color)
+				st.set_color(wall_color)
 				# Quad facing +X (two triangles)
 				st.add_vertex(Vector3(wx, h_lower, wz_top))
 				st.add_vertex(Vector3(wx, h_upper, wz_top))
@@ -254,6 +373,8 @@ func _update_cliff_mesh(result) -> void:
 				var wx_right: float = -half_w + float(x + 1)
 				var wz: float = -half_h + float(y + 1)
 
+				var wall_color: Color = _cliff_wall_color(tier_indices, tier_colors, idx, idx_down, cliff_color)
+				st.set_color(wall_color)
 				# Quad facing +Z (two triangles)
 				st.add_vertex(Vector3(wx_left, h_lower, wz))
 				st.add_vertex(Vector3(wx_left, h_upper, wz))
@@ -276,12 +397,23 @@ func _update_cliff_mesh(result) -> void:
 	mesh_instance.mesh = cliff_mesh
 
 	var material := StandardMaterial3D.new()
-	var cliff_color = result.get("cliff_color")
-	material.albedo_color = cliff_color if cliff_color != null else Color(0.75, 0.65, 0.35, 1.0)
+	material.vertex_color_use_as_albedo = true
 	material.roughness = 1.0
 	# Render both sides so the cliff color is visible from either neighbor's view.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh_instance.material_override = material
+
+
+## Returns the color for a cliff wall between two adjacent cells.
+## If the higher-tier cell is purple (tier >= 5), use its tier color;
+## otherwise use the default rock-yellow cliff_color.
+func _cliff_wall_color(tier_indices: PackedInt32Array, tier_colors: Array, idx_a: int, idx_b: int, cliff_color: Color) -> Color:
+	var ta: int = tier_indices[idx_a]
+	var tb: int = tier_indices[idx_b]
+	var higher_tier: int = ta if ta > tb else tb
+	if higher_tier >= 5 and higher_tier < tier_colors.size():
+		return tier_colors[higher_tier]
+	return cliff_color
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
