@@ -1,7 +1,8 @@
-[gd_scene format=3 uid="uid://v1vt8j17racb"]
+[gd_scene load_steps=4 format=3 uid="uid://v1vt8j17racb"]
 
 [ext_resource type="Script" uid="uid://b57qg0pcjevwu" path="res://src/map_gen_controller.gd" id="1_ctrl"]
 [ext_resource type="Script" uid="uid://xo22vmom48nm" path="res://src/rendering/terrain_renderer.gd" id="2_renderer"]
+[ext_resource type="Script" path="res://src/rendering/camera_controller.gd" id="3_camera"]
 
 [node name="MapGenController" type="Node3D" unique_id=1466354450]
 script = ExtResource("1_ctrl")
@@ -11,7 +12,7 @@ seed = 856
 script = ExtResource("2_renderer")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=200824064]
-transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 200, 300)
+script = ExtResource("3_camera")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1414855452]
 transform = Transform3D(0.9210603, -0.21988216, 0.32140085, 0, 0.82533574, 0.56464255, -0.38941807, -0.5200702, 0.7601845, 0, 0, 0)
