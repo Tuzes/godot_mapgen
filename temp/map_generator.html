@@ -1,0 +1,595 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帝国时代4 风格地图生成器</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #1a1a2e;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+    padding: 20px;
+}
+.container {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 920px;
+    width: 100%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+h1 {
+    text-align: center;
+    font-size: 22px;
+    margin-bottom: 20px;
+    color: #e0c97f;
+    letter-spacing: 2px;
+}
+.controls {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: flex-end; margin-bottom: 18px;
+}
+.control-group { display: flex; flex-direction: column; gap: 4px; }
+.control-group label { font-size: 13px; color: #8899b0; }
+select, input[type="number"] {
+    background: #0f3460;
+    border: 1px solid #1a4a7a;
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+}
+select:focus, input[type="number"]:focus { border-color: #4a9eff; }
+select { min-width: 130px; cursor: pointer; }
+input[type="number"] { width: 110px; }
+.btn {
+    background: #e0c97f;
+    color: #16213e;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn:hover { background: #f0d99f; }
+.btn-secondary { background: #2a4a7a; color: #e0e0e0; padding: 8px 10px; }
+.btn-secondary:hover { background: #3a5a8a; }
+.canvases {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+.canvas-box {
+    background: #0a0a1a;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid #2a3a5a;
+}
+.canvas-box .title {
+    background: #0f3460;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #8899b0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+.legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #0f3460;
+    border-radius: 8px;
+    font-size: 13px;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-color {
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+.info {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 13px;
+    color: #8899b0;
+}
+.info strong { color: #e0c97f; }
+@media (max-width: 700px) {
+    .canvases { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>帝国时代4 风格地图生成器</h1>
+    <div class="controls">
+        <div class="control-group">
+            <label for="mapType">地图类型</label>
+            <select id="mapType">
+                <option value="mountains">群山</option>
+                <option value="pass">隘口</option>
+                <option value="archipelago">群岛</option>
+                <option value="plains">平原</option>
+                <option value="continent">大陆</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="seed">种子 (Seed)</label>
+            <div style="display:flex;gap:6px;">
+                <input type="number" id="seed" value="42" min="-999999" max="999999">
+                <button class="btn btn-secondary" id="randomSeedBtn">随机</button>
+            </div>
+        </div>
+        <div class="control-group">
+            <label for="size">分辨率</label>
+            <select id="size">
+                <option value="256">256 x 256</option>
+                <option value="384" selected>384 x 384</option>
+                <option value="512">512 x 512</option>
+            </select>
+        </div>
+        <button class="btn" id="generateBtn">生成地图</button>
+        <button class="btn btn-secondary" id="downloadBtn" style="padding:9px 14px;">下载灰度图</button>
+    </div>
+
+    <div class="canvases">
+        <div class="canvas-box">
+            <div class="title">高度灰度图（输出）</div>
+            <canvas id="heightCanvas"></canvas>
+        </div>
+        <div class="canvas-box">
+            <div class="title">地形渲染（预览）</div>
+            <canvas id="biomeCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="legend">
+        <span class="legend-item"><span class="legend-color" style="background:#1a3a6c;"></span> 深海</span>
+        <span class="legend-item"><span class="legend-color" style="background:#3a8cc0;"></span> 浅水</span>
+        <span class="legend-item"><span class="legend-color" style="background:#e8c840;"></span> 沙滩</span>
+        <span class="legend-item"><span class="legend-color" style="background:#5a9e4a;"></span> 草地</span>
+        <span class="legend-item"><span class="legend-color" style="background:#2a6a2a;"></span> 树林</span>
+        <span class="legend-item"><span class="legend-color" style="background:#7a3aaa;"></span> 山脉</span>
+        <span class="legend-item"><span class="legend-color" style="background:#9a5acc;"></span> 高峰</span>
+    </div>
+
+    <div class="info">
+        生成耗时 <strong id="timeInfo">-</strong> ms | 种子 <strong id="seedDisplay">42</strong>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// 1. 种子哈希 (32-bit integer hash)
+//    - 输入坐标 (x,y) 与 seed 即可得到稳定哈希值
+//    - 与传统线性 PRNG 不同, 它是 "空间寻址" 的, 适合生成噪声
+// ============================================================
+function hashInt(x, y, seed) {
+    let h = (seed | 0) ^ 0x9E3779B9;
+    h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B) + (x | 0) | 0;
+    h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35) + (y | 0) | 0;
+    h = Math.imul(h ^ (h >>> 16), 0x27D4EB2F);
+    return (h ^ (h >>> 15)) >>> 0;
+}
+function hashFloat(x, y, seed) {
+    return hashInt(x, y, seed) / 4294967296;
+}
+
+// ============================================================
+// 2. 值噪声 (Value Noise) + smoothstep 插值
+//    - 在每个整数格点放一个伪随机值, 单元格内做平滑插值
+//    - 比 Perlin 简单, 视觉差异不大, 此处用于演示
+// ============================================================
+function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+function valueNoise(x, y, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const sx = smoothstep(fx), sy = smoothstep(fy);
+    const v00 = hashFloat(ix, iy, seed);
+    const v10 = hashFloat(ix + 1, iy, seed);
+    const v01 = hashFloat(ix, iy + 1, seed);
+    const v11 = hashFloat(ix + 1, iy + 1, seed);
+    const a = v00 + (v10 - v00) * sx;
+    const b = v01 + (v11 - v01) * sx;
+    return a + (b - a) * sy;
+}
+
+// ============================================================
+// 3. 分形布朗运动 (fBm)
+//    - 多倍频叠加, 自然分形外观
+//    - octaves 越多越细腻, gain 控制高频衰减
+// ============================================================
+function fBm(x, y, octaves, seed, lacunarity, gain) {
+    lacunarity = lacunarity || 2.0;
+    gain = gain || 0.5;
+    let value = 0, amp = 1, freq = 1, maxVal = 0;
+    for (let i = 0; i < octaves; i++) {
+        value += amp * valueNoise(x * freq, y * freq, seed + i * 9973);
+        maxVal += amp;
+        amp *= gain;
+        freq *= lacunarity;
+    }
+    return value / maxVal;
+}
+
+// ============================================================
+// 4. 细胞噪声 (Worley) - 用于群岛地形
+// ============================================================
+function cellularNoise(x, y, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    let minDist = Infinity;
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            const cx = ix + dx, cy = iy + dy;
+            const px = cx + hashFloat(cx, cy, seed);
+            const py = cy + hashFloat(cx, cy, seed + 3331);
+            const ex = x - px, ey = y - py;
+            const d = ex * ex + ey * ey;
+            if (d < minDist) minDist = d;
+        }
+    }
+    return Math.min(1, Math.sqrt(minDist));
+}
+
+// ============================================================
+// 5. 五种地形整形函数 (Terrain Shaping)
+//    每种类型 = fBm 基础噪声 + 一个 "形状函数(mask)"
+//    mask 决定整体走向, 噪声提供细节
+// ============================================================
+
+// 5a. 群山: fBm + 山脊化(ridge) + 中心径向加权
+function generateMountains(W, H, seed) {
+    const map = new Float32Array(W * H);
+    const cx = 0.45 + hashFloat(1, 1, seed + 77) * 0.1;
+    const cy = 0.45 + hashFloat(2, 2, seed + 77) * 0.1;
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const nx = x / W, ny = y / H;
+            const n = fBm(nx * 2.5, ny * 2.5, 6, seed, 2.1, 0.55);
+            // 山脊化: 1 - |2n - 1| 把噪声折叠成 "山脊状"
+            let ridge = 1 - Math.abs(2 * n - 1);
+            ridge = Math.pow(ridge, 1.4);
+            // 径向衰减让山脉聚拢中心
+            const d = Math.sqrt((nx - cx) * (nx - cx) + (ny - cy) * (ny - cy));
+            const radial = Math.max(0, 1 - d / 0.55);
+            const detail = fBm(nx * 6, ny * 6, 4, seed + 100, 2.0, 0.5) * 0.15;
+            let h = ridge * 0.5 + radial * 0.45 + detail;
+            map[y * W + x] = Math.min(1, Math.max(0, h));
+        }
+    }
+    return map;
+}
+
+// 5b. 隘口: 一整片平原, 两条平行山脉将地图分成三块, 山脉上 1-3 处豁口
+//   设计要点:
+//     - 基础高度 = 平原 (0.48), 整张图都是陆地, 不会出海
+//     - 两条山脊 = 高斯峰 (加法叠加在平原之上)
+//     - 山脊走向随机水平/垂直, 位置略有抖动
+//     - 每条山脊独立 sample 1-3 个豁口 (高斯井扣除山脊高度)
+//     - 适度 fBm 让山脊形态自然不死板
+function generatePass(W, H, seed) {
+    const map = new Float32Array(W * H);
+
+    // ---- 参数采样 (基于 seed, 保证可复现) ----
+    const horizontal = hashFloat(0, 0, seed + 200) > 0.5;
+    // 两条山脊在 [0.25, 0.75] 区间内, 间距足够大
+    const ridge1 = 0.28 + hashFloat(1, 0, seed + 201) * 0.06; // ~0.28~0.34
+    const ridge2 = 0.66 + hashFloat(0, 1, seed + 202) * 0.06; // ~0.66~0.72
+    const ridgeWidth = 8.0; // 高斯峰陡度 (越大山越窄)
+    const ridgePeak = 0.45; // 山脊在平原之上的额外高度
+
+    // ---- 每条山脊上的豁口位置 (1-3 个, 独立采样) ----
+    function samplePassesFor(channel) {
+        const n = 1 + Math.floor(hashFloat(channel, 7, seed + 220) * 3); // 1, 2 或 3
+        const passes = [];
+        for (let i = 0; i < n; i++) {
+            const pos = 0.15 + hashFloat(channel, i + 1, seed + 230) * 0.7;
+            const width = 0.05 + hashFloat(channel, i + 100, seed + 240) * 0.05; // 0.05~0.10
+            passes.push({ pos: pos, width: width });
+        }
+        return passes;
+    }
+    const passesA = samplePassesFor(1); // 山脊 1 上的豁口
+    const passesB = samplePassesFor(2); // 山脊 2 上的豁口
+
+    // 计算 along 轴上某点离最近豁口的高斯井深度 (0..1, 1=完全豁口处)
+    function passDip(along, passes) {
+        let dip = 0;
+        for (const p of passes) {
+            const d = (along - p.pos) / p.width;
+            const v = Math.exp(-d * d);
+            if (v > dip) dip = v;
+        }
+        return dip;
+    }
+
+    const baseLand = 0.48; // 平原基础高度 (高于水位 0.30, 低于山脊触发阈值 0.70)
+
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const nx = x / W, ny = y / H;
+            const along = horizontal ? nx : ny;
+            const across = horizontal ? ny : nx;
+
+            // 平原起伏 (低频, 缓和)
+            const plain = (fBm(nx * 1.6, ny * 1.6, 4, seed + 211, 2.0, 0.5) - 0.5) * 0.10;
+
+            // 两条山脊的高斯剖面
+            // 用 across 计算高度, 但中心位置叠一层低频抖动让山不是直线
+            const wobble1 = (fBm(along * 2.5, 0.5, 3, seed + 213, 2.0, 0.5) - 0.5) * 0.04;
+            const wobble2 = (fBm(along * 2.5, 1.5, 3, seed + 214, 2.0, 0.5) - 0.5) * 0.04;
+            const dx1 = (across - (ridge1 + wobble1)) * ridgeWidth;
+            const dx2 = (across - (ridge2 + wobble2)) * ridgeWidth;
+            const r1raw = Math.exp(-dx1 * dx1);
+            const r2raw = Math.exp(-dx2 * dx2);
+
+            // 各自扣除豁口
+            const dipA = passDip(along, passesA);
+            const dipB = passDip(along, passesB);
+            // 0.95 保证豁口处山脊几乎完全切断, 但留一点点边缘余韵
+            const r1 = r1raw * (1 - dipA * 0.95);
+            const r2 = r2raw * (1 - dipB * 0.95);
+
+            // 山体细节噪声 (只在山脊处生效, 让山顶有变化)
+            const ridgeMask = Math.max(r1raw, r2raw);
+            const ridgeDetail = (fBm(nx * 5, ny * 5, 4, seed + 215, 2.0, 0.55) - 0.5) * 0.10 * ridgeMask;
+
+            const h = baseLand + plain + (r1 + r2) * ridgePeak + ridgeDetail;
+            map[y * W + x] = Math.min(1, Math.max(0, h));
+        }
+    }
+    return map;
+}
+
+// 5c. 群岛: 少量大岛 (3-5 个), 形状不规则
+//   设计要点:
+//     - 低密度细胞 (*1.8) -> 整张图只产生 3-5 个 site
+//     - 强域扭曲 (大幅低频 + 中频 fBm) -> 破坏圆形, 形成半岛/海湾
+//     - island^0.55 -> 岛域更宽阔, 不像 "细胞" 那样尖
+//     - 高频噪声 -> 海岸线锯齿化
+function generateArchipelago(W, H, seed) {
+    const map = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const nx = x / W, ny = y / H;
+
+            // 强域扭曲: 低频大幅 + 中频破坏对称
+            const warpLow = 0.30;
+            const warpMid = 0.12;
+            const wx = nx
+                + (fBm(nx * 1.2, ny * 1.2, 3, seed + 50, 2.0, 0.55) - 0.5) * warpLow
+                + (fBm(nx * 3.0, ny * 3.0, 3, seed + 52, 2.0, 0.5) - 0.5) * warpMid;
+            const wy = ny
+                + (fBm(nx * 1.2 + 7, ny * 1.2 + 7, 3, seed + 51, 2.0, 0.55) - 0.5) * warpLow
+                + (fBm(nx * 3.0 + 9, ny * 3.0 + 9, 3, seed + 53, 2.0, 0.5) - 0.5) * warpMid;
+
+            // 低密度细胞: 1.8 倍频 -> 整张图大约 3-5 个 site
+            // 细胞值越小 = 离 site 越近 = 越靠近某个岛中心
+            const cell = cellularNoise(wx * 1.8, wy * 1.8, seed + 60);
+
+            // 翻转 + 开方: 让岛域更宽阔, 不再是尖锐的细胞
+            let island = 1 - cell * 1.55;
+            island = Math.max(0, island);
+            island = Math.pow(island, 0.55);
+
+            // 中频细节: 改变岛内地形起伏
+            const mid = fBm(nx * 4, ny * 4, 4, seed + 70, 2.0, 0.5) * 0.18;
+
+            // 高频细节: 海岸线锯齿
+            const coast = (fBm(nx * 12, ny * 12, 3, seed + 80, 2.0, 0.5) - 0.5) * 0.12;
+
+            // 边缘衰减: 防止岛屿贴到地图边
+            const edgeDist = Math.min(nx, ny, 1 - nx, 1 - ny);
+            const edgeFade = Math.min(1, edgeDist * 4);
+
+            let h = island * 0.85 * edgeFade + mid + coast;
+            // 整体下移让海域足够多, 但岛不至于太小
+            h -= 0.02;
+
+            map[y * W + x] = Math.min(1, Math.max(0, h));
+        }
+    }
+    return map;
+}
+
+// 5d. 平原: 平缓 fBm + 少量低洼河流
+function generatePlains(W, H, seed) {
+    const map = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const nx = x / W, ny = y / H;
+            const base = fBm(nx * 1.6, ny * 1.6, 4, seed, 2.0, 0.5);
+            // 压缩到中等高度区间 [0.28, 0.55]
+            let h = 0.28 + base * 0.27;
+            // 河流: 用一个尖锐的 fBm 当作 "侵蚀场"
+            const riverField = fBm(nx * 2.5 + 7, ny * 2.5 + 7, 4, seed + 300, 2.0, 0.5);
+            const river = 1 - Math.abs(2 * riverField - 1); // 山脊化得到曲线
+            if (river > 0.85) {
+                h -= (river - 0.85) * 1.2; // 水平衰减形成河谷
+            }
+            // 细节抖动
+            h += fBm(nx * 8, ny * 8, 2, seed + 310, 2.0, 0.5) * 0.04;
+            map[y * W + x] = Math.min(1, Math.max(0, h));
+        }
+    }
+    return map;
+}
+
+// 5e. 大陆: 几乎全陆地, 内嵌湖泊和河流
+function generateContinent(W, H, seed) {
+    const map = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const nx = x / W, ny = y / H;
+            // 边缘衰减 (radial mask): 中心高, 边缘略低 (但不到水位)
+            const dx = nx - 0.5, dy = ny - 0.5;
+            const dist = Math.sqrt(dx * dx + dy * dy) * 1.7;
+            const edge = Math.max(0, 1 - dist * dist);
+
+            const base = fBm(nx * 2.0, ny * 2.0, 6, seed, 2.0, 0.55);
+            let h = base * 0.45 + edge * 0.35 + 0.18;
+
+            // 湖泊: 低频噪声局部低于阈值视为湖
+            const lakeField = fBm(nx * 1.5 + 11, ny * 1.5 + 11, 3, seed + 400, 2.0, 0.5);
+            if (lakeField < 0.35) h -= (0.35 - lakeField) * 0.8;
+
+            // 河流: 山脊化噪声切槽
+            const riverField = fBm(nx * 2.5 + 17, ny * 2.5 + 17, 4, seed + 410, 2.0, 0.5);
+            const river = 1 - Math.abs(2 * riverField - 1);
+            if (river > 0.88) h -= (river - 0.88) * 1.5;
+
+            // 山地点缀
+            const mountField = fBm(nx * 3.5 + 23, ny * 3.5 + 23, 4, seed + 420, 2.0, 0.5);
+            if (mountField > 0.65) h += (mountField - 0.65) * 0.8;
+
+            map[y * W + x] = Math.min(1, Math.max(0, h));
+        }
+    }
+    return map;
+}
+
+const GENERATORS = {
+    mountains: generateMountains,
+    pass: generatePass,
+    archipelago: generateArchipelago,
+    plains: generatePlains,
+    continent: generateContinent
+};
+
+// ============================================================
+// 6. 渲染: 灰度图 + 彩色地形图
+// ============================================================
+
+// 高度 -> 灰度 (0..1 -> 0..255)
+function renderHeightMap(canvas, map, W, H) {
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const data = img.data;
+    for (let i = 0; i < W * H; i++) {
+        const v = Math.round(map[i] * 255);
+        data[i * 4] = v;
+        data[i * 4 + 1] = v;
+        data[i * 4 + 2] = v;
+        data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+}
+
+// 高度 -> 地形色
+// 阈值划分:
+//   < 0.30  深海
+//   < 0.38  浅水
+//   < 0.42  沙滩
+//   < 0.55  草地
+//   < 0.70  树林
+//   < 0.85  山脉
+//   else    高峰
+function heightToBiomeColor(h, out, idx) {
+    let r, g, b;
+    if (h < 0.30)      { r = 26;  g = 58;  b = 108; }   // 深海
+    else if (h < 0.38) { r = 58;  g = 140; b = 192; }   // 浅水
+    else if (h < 0.42) { r = 232; g = 200; b = 64;  }   // 沙滩
+    else if (h < 0.55) { r = 90;  g = 158; b = 74;  }   // 草地
+    else if (h < 0.70) { r = 42;  g = 106; b = 42;  }   // 树林
+    else if (h < 0.85) { r = 122; g = 58;  b = 170; }   // 山脉
+    else               { r = 154; g = 90;  b = 204; }   // 高峰
+
+    // 简单光照: 用同行的高度差当作 fake-shading (东南方向光)
+    out[idx]     = r;
+    out[idx + 1] = g;
+    out[idx + 2] = b;
+    out[idx + 3] = 255;
+}
+
+function renderBiomeMap(canvas, map, W, H) {
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const data = img.data;
+
+    // 法线光照参数 (光从西北方向)
+    const lx = -0.7, ly = -0.7;
+
+    for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+            const i = y * W + x;
+            heightToBiomeColor(map[i], data, i * 4);
+
+            // 山地光照: 仅对陆地有效
+            if (map[i] >= 0.42) {
+                const xr = Math.min(W - 1, x + 1);
+                const yd = Math.min(H - 1, y + 1);
+                const dhx = map[y * W + xr] - map[i];
+                const dhy = map[yd * W + x] - map[i];
+                let shade = 1 - (dhx * lx + dhy * ly) * 4.0;
+                shade = Math.min(1.35, Math.max(0.7, shade));
+                data[i * 4]     = Math.min(255, Math.round(data[i * 4]     * shade));
+                data[i * 4 + 1] = Math.min(255, Math.round(data[i * 4 + 1] * shade));
+                data[i * 4 + 2] = Math.min(255, Math.round(data[i * 4 + 2] * shade));
+            }
+        }
+    }
+    ctx.putImageData(img, 0, 0);
+}
+
+// ============================================================
+// 7. 主流程
+// ============================================================
+const heightCanvas = document.getElementById('heightCanvas');
+const biomeCanvas  = document.getElementById('biomeCanvas');
+const mapTypeSel   = document.getElementById('mapType');
+const seedInput    = document.getElementById('seed');
+const sizeSel      = document.getElementById('size');
+const seedDisplay  = document.getElementById('seedDisplay');
+const timeInfo     = document.getElementById('timeInfo');
+
+function generate() {
+    const type = mapTypeSel.value;
+    const seed = parseInt(seedInput.value, 10) || 0;
+    const size = parseInt(sizeSel.value, 10) || 384;
+
+    const t0 = performance.now();
+    const map = GENERATORS[type](size, size, seed);
+    renderHeightMap(heightCanvas, map, size, size);
+    renderBiomeMap(biomeCanvas, map, size, size);
+    const t1 = performance.now();
+
+    timeInfo.textContent = (t1 - t0).toFixed(0);
+    seedDisplay.textContent = seed;
+
+    // 把灰度图存到 canvas 自身, 方便下载
+    heightCanvas._lastMap = map;
+    heightCanvas._lastSize = size;
+}
+
+document.getElementById('generateBtn').addEventListener('click', generate);
+document.getElementById('randomSeedBtn').addEventListener('click', () => {
+    seedInput.value = Math.floor(Math.random() * 999999);
+    generate();
+});
+document.getElementById('downloadBtn').addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = `heightmap_${mapTypeSel.value}_${seedInput.value}.png`;
+    link.href = heightCanvas.toDataURL('image/png');
+    link.click();
+});
+
+// 类型/分辨率切换时自动重生成
+mapTypeSel.addEventListener('change', generate);
+sizeSel.addEventListener('change', generate);
+seedInput.addEventListener('change', generate);
+
+// 初始化
+generate();
+</script>
+</body>
+</html>
