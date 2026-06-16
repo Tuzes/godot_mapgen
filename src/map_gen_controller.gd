@@ -18,6 +18,7 @@ const _CORE_REGISTRY = preload("res://src/core/generator_registry.gd")
 const _PROC_CONFIG = preload("res://src/processing/heightmap_processing_config.gd")
 const _PROC_PROCESSOR = preload("res://src/processing/heightmap_processor.gd")
 const _PROC_TERRACE = preload("res://src/processing/terrace_processor.gd")
+const _PROC_MOUNTAIN_OFFSET = preload("res://src/processing/mountain_offset_processor.gd")
 const _PROC_WATER = preload("res://src/processing/water_plane_processor.gd")
 const _PROC_PIPELINE = preload("res://src/processing/heightmap_pipeline.gd")
 
@@ -71,10 +72,13 @@ func _build_pipeline() -> void:
 	_pipeline.config = shared_config
 	var terrace_processor = _PROC_TERRACE.new()
 	terrace_processor.config = shared_config
+	var mountain_offset_processor = _PROC_MOUNTAIN_OFFSET.new()
+	mountain_offset_processor.config = shared_config
 	var water_processor = _PROC_WATER.new()
 	water_processor.config = shared_config
 	_pipeline.add_processor(terrace_processor)
 	_pipeline.add_processor(water_processor)
+	_pipeline.add_processor(mountain_offset_processor)
 
 
 func _register_generators() -> void:

@@ -27,6 +27,12 @@ extends Resource
 ## Cliff-face rock colour (yellow-gray)
 @export var cliff_color: Color = Color(0.78, 0.73, 0.52, 1.0)
 
+## Vertical drop applied to purple-tier heights so the mountain base
+## sits flush with the dark-green terrace.
+## Default = thresholds[4] - midpoints[4] = 0.70 - 0.625 = 0.075
+## (purple lower bound minus dark-green platform height).
+@export var mountain_drop: float = 0.075
+
 
 ## Number of tier bands
 func tier_count() -> int:
