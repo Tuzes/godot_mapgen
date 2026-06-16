@@ -34,6 +34,10 @@ var height_tier_colors: Array[Color] = []
 ## Pipeline processing time (ms)
 var processing_time_ms: float = 0.0
 
+## Horizontal cell spacing multiplier applied by ScaleProcessor.
+## Default 1.0 = original spacing; 2.0 = each cell is twice as wide on the XZ plane.
+var xy_scale: float = 1.0
+
 
 func _init(p_heightmap: PackedFloat32Array, p_width: int, p_height: int,
 		p_seed: int, p_generator_name: String, p_generation_time_ms: float = 0.0) -> void:

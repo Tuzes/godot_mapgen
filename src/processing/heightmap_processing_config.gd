@@ -33,6 +33,18 @@ extends Resource
 ## (purple lower bound minus dark-green platform height).
 @export var mountain_drop: float = 0.075
 
+## Horizontal scale applied by ScaleProcessor (XZ plane).
+## 1.0 = original size, 2.0 = doubles map footprint on XZ.
+@export var xy_scale: float = 1.0
+
+## Vertical scale applied to non-mountain tiers (0-4: water → forest).
+## Multiplies the heightmap value of those tiers in place.
+@export var z_scale_low: float = 1.0
+
+## Vertical scale applied to mountain tiers (5-6: purple).
+## Multiplies the heightmap value of those tiers in place (around the dropped base).
+@export var z_scale_high: float = 1.0
+
 
 ## Number of tier bands
 func tier_count() -> int:

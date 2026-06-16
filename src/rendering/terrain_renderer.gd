@@ -96,6 +96,7 @@ func _update_terrace_mesh(result) -> void:
 	var w: int = result.width
 	var h: int = result.height_val
 	var heightmap: PackedFloat32Array = result.heightmap
+	var xy_scale: float = result.xy_scale
 
 	var tier_indices_raw = result.get("tier_indices")
 	var tier_indices: PackedInt32Array
@@ -112,8 +113,8 @@ func _update_terrace_mesh(result) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var half_w: float = float(w) / 2.0
-	var half_h: float = float(h) / 2.0
+	var half_w: float = float(w) / 2.0 * xy_scale
+	var half_h: float = float(h) / 2.0 * xy_scale
 
 	for y in range(h):
 		for x in range(w):
@@ -124,10 +125,10 @@ func _update_terrace_mesh(result) -> void:
 			var height_y: float = heightmap[idx] * height_scale
 			var color: Color = _color_for_index(idx, tier_indices, tier_colors)
 
-			var x0: float = -half_w + float(x)
-			var x1: float = -half_w + float(x + 1)
-			var z0: float = -half_h + float(y)
-			var z1: float = -half_h + float(y + 1)
+			var x0: float = -half_w + float(x) * xy_scale
+			var x1: float = -half_w + float(x + 1) * xy_scale
+			var z0: float = -half_h + float(y) * xy_scale
+			var z1: float = -half_h + float(y + 1) * xy_scale
 
 			st.set_color(color)
 			st.add_vertex(Vector3(x0, height_y, z0))
@@ -182,6 +183,7 @@ func _update_mountain_mesh(result) -> void:
 	var w: int = result.width
 	var h: int = result.height_val
 	var heightmap: PackedFloat32Array = result.heightmap
+	var xy_scale: float = result.xy_scale
 
 	var tier_indices_raw = result.get("tier_indices")
 	if tier_indices_raw == null or not tier_indices_raw is PackedInt32Array:
@@ -196,8 +198,8 @@ func _update_mountain_mesh(result) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var half_w: float = float(w) / 2.0
-	var half_h: float = float(h) / 2.0
+	var half_w: float = float(w) / 2.0 * xy_scale
+	var half_h: float = float(h) / 2.0 * xy_scale
 
 	var any_mountain := false
 
@@ -211,10 +213,10 @@ func _update_mountain_mesh(result) -> void:
 
 			any_mountain = true
 			var color: Color = _color_for_index(idx, tier_indices, tier_colors)
-			var x0: float = -half_w + float(x)
-			var x1: float = -half_w + float(x + 1)
-			var z0: float = -half_h + float(y)
-			var z1: float = -half_h + float(y + 1)
+			var x0: float = -half_w + float(x) * xy_scale
+			var x1: float = -half_w + float(x + 1) * xy_scale
+			var z0: float = -half_h + float(y) * xy_scale
+			var z1: float = -half_h + float(y + 1) * xy_scale
 
 			if x < w - 1 and y < h - 1:
 				# Interior cell: two triangles sharing the four corners.
@@ -298,7 +300,8 @@ func _update_water_plane(result) -> void:
 
 	var plane_mesh := PlaneMesh.new()
 	var multiplier: float = max(1.0, water_size_multiplier)
-	plane_mesh.size = Vector2(float(result.width) * multiplier, float(result.height_val) * multiplier)
+	var xy_scale: float = result.xy_scale
+	plane_mesh.size = Vector2(float(result.width) * multiplier * xy_scale, float(result.height_val) * multiplier * xy_scale)
 	mesh_instance.mesh = plane_mesh
 	mesh_instance.position = Vector3(0.0, water_level * height_scale, 0.0)
 
@@ -322,6 +325,7 @@ func _update_cliff_mesh(result) -> void:
 	var w: int = result.width
 	var h: int = result.height_val
 	var heightmap: PackedFloat32Array = result.heightmap
+	var xy_scale: float = result.xy_scale
 
 	var cliff_color: Color = result.get("cliff_color") if result.get("cliff_color") != null else Color(0.78, 0.73, 0.52, 1.0)
 	var tier_colors_raw = result.get("height_tier_colors")
@@ -332,8 +336,8 @@ func _update_cliff_mesh(result) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var half_w: float = float(w) / 2.0
-	var half_h: float = float(h) / 2.0
+	var half_w: float = float(w) / 2.0 * xy_scale
+	var half_h: float = float(h) / 2.0 * xy_scale
 
 	# Horizontal edges (between cell at x and x+1)
 	for y in range(h):
@@ -345,9 +349,9 @@ func _update_cliff_mesh(result) -> void:
 				var h2: float = heightmap[idx_right] * height_scale
 				var h_lower: float = min(h1, h2)
 				var h_upper: float = max(h1, h2)
-				var wx: float = -half_w + float(x + 1)
-				var wz_top: float = -half_h + float(y)
-				var wz_bot: float = -half_h + float(y + 1)
+				var wx: float = -half_w + float(x + 1) * xy_scale
+				var wz_top: float = -half_h + float(y) * xy_scale
+				var wz_bot: float = -half_h + float(y + 1) * xy_scale
 
 				var wall_color: Color = _cliff_wall_color(tier_indices, tier_colors, idx, idx_right, cliff_color)
 				st.set_color(wall_color)
@@ -369,9 +373,9 @@ func _update_cliff_mesh(result) -> void:
 				var h2: float = heightmap[idx_down] * height_scale
 				var h_lower: float = min(h1, h2)
 				var h_upper: float = max(h1, h2)
-				var wx_left: float = -half_w + float(x)
-				var wx_right: float = -half_w + float(x + 1)
-				var wz: float = -half_h + float(y + 1)
+				var wx_left: float = -half_w + float(x) * xy_scale
+				var wx_right: float = -half_w + float(x + 1) * xy_scale
+				var wz: float = -half_h + float(y + 1) * xy_scale
 
 				var wall_color: Color = _cliff_wall_color(tier_indices, tier_colors, idx, idx_down, cliff_color)
 				st.set_color(wall_color)
